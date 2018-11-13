@@ -58,8 +58,8 @@ class PvMqttChan:
             else:
                 self.client.publish(self.chan,value,self.qos, self.retain)
         except Exception as e:
-            print("Trouble in updateChan with "+ str(e))
-            logging.info("Trouble in updateChan with "+ str(e))
+            print("Trouble when Publishing to Mqtt with "+self.chan+": "+ str(e))
+            logging.info("Trouble when Publishing to Mqtt with "+self.chan+": "+ str(e))
             cothread.Quit()
     def updatePv(self,value):
         try:
@@ -70,8 +70,8 @@ class PvMqttChan:
                 pv_val = self.intToScalar(value)
                 cothread.Callback(caput,self.pv,pv_val)
         except Exception as e:
-            print("Trouble in updatePv with "+ str(e))
-            logging.info("Trouble in updatePv with "+ str(e))
+            print("Trouble when Publishing to PV with "+self.pv+": "+ str(e))
+            logging.info("Trouble when Publishing to PV with "+self.pv+": "+ str(e))
             cothread.Quit()
     def findServer(self,type,name):
         result = [x for x in self.servers if x.type == type and x.name == name]
@@ -168,7 +168,7 @@ class WaveForm:
             time.sleep(sleeptime)
     def sendWfToPv(self,pv_name):
         if len(self.msg)!=0:
-            cothread.Callback(caput,pv_name,self.msg)
+            cothread.Callback(caput,pv_name,self.msg,repeat_value = True)
 
 
 class Server:
