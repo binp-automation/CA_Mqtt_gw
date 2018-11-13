@@ -3,7 +3,7 @@
         "mqtt": "VEPP3/H/DAC/wf",
         "pv": "VEPP3_H_Iwf-SP",
         "direction": "pm",
-        "datatype": "wf",
+        "datatype": "wfint",
         "qos": 1
     },
     {
@@ -31,21 +31,21 @@
         "mqtt": "VEPP3/H/ADC/01/000",
         "pv": "VEPP3_H_DAC-I",
         "direction": "mp",
-        "datatype": "wf",
+        "datatype": "wfint",
         "qos": 2
     },
     {
         "mqtt": "VEPP3/H/ADC/02/000",
         "pv": "VEPP3_H_I-I",
         "direction": "mp",
-        "datatype": "wf",
+        "datatype": "wfint",
         "qos": 2
     },
     {
         "mqtt": "VEPP3/H/ADC/03/000",
         "pv": "VEPP3_H_U-I",
         "direction": "mp",
-        "datatype": "wf",
+        "datatype": "wfint",
         "qos": 2
     },
     {
