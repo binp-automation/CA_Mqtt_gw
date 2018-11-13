@@ -120,6 +120,8 @@ class PvMqttChan:
         else:
             waveforms[wfid] = WaveForm(id=wfid,msgsize=msgsize,first_msg=message)
         waveforms[wfid].sendWfToPv(self.pv)
+        # TODO:
+        #del waveforms[wfid]
 
 
 class WaveForm:
@@ -139,7 +141,7 @@ class WaveForm:
         self.msg = self.unpackWf()
     def unpackWf(self):
         wf = []
-        n_segments = self.msgsize//self.maxsize+1
+        n_segments = (self.msgsize - 1)//self.maxsize + 1
         if n_segments > len(self.messages):
             return wf
         last_segment_size = self.msgsize%self.maxsize
@@ -154,7 +156,7 @@ class WaveForm:
         pack = []
         if self.msgsize==0:
             return pack
-        n_segments = self.msgsize/self.maxsize+1
+        n_segments = (self.msgsize - 1)//self.maxsize + 1
         last_segment_size = self.msgsize%self.maxsize
         segment_size = self.maxsize
         for i in range(n_segments):
@@ -173,6 +175,8 @@ class WaveForm:
             time.sleep(sleeptime)
     def sendWfToPv(self,pv_name):
         try:
+            print("[debug] self.msg: %s" % self.msg);
+            print("[debug] len(self.msg): %s" % len(self.msg));
             if len(self.msg)!=0:
                 cothread.Callback(caput,pv_name,self.msg)
         except Exception as e:
