@@ -6,7 +6,7 @@ from cothread.catools import *
 import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-from PyQt4 import QtCore
+#from PyQt4 import QtCore
 import json
 import time
 import sys
@@ -15,6 +15,8 @@ import array
 import struct
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
+
+import traceback
 
 import logging
 
@@ -49,7 +51,7 @@ class PvMqttChan:
                 camonitor(self.pv,self.updateChan)
             print(self.chan+" connection set")
         except Exception as e:
-            print("Trouble with connection " + str(e))
+            print("Trouble with connection:\n" + traceback.format_exc())
             cothread.Quit()
     def updateChan(self,value):
         try:
@@ -58,7 +60,7 @@ class PvMqttChan:
             else:
                 self.client.publish(self.chan,value,self.qos, self.retain)
         except Exception as e:
-            print("Trouble in updateChan with "+ str(e))
+            print("Trouble in updateChan:\n" + traceback.format_exc())
             logging.info("Trouble in updateChan with "+ str(e))
             cothread.Quit()
     def updatePv(self,value):
@@ -70,7 +72,7 @@ class PvMqttChan:
                 pv_val = self.intToScalar(value)
                 cothread.Callback(caput,self.pv,pv_val)
         except Exception as e:
-            print("Trouble in updatePv with "+ str(e))
+            print("Trouble in updatePv:\n" + traceback.format_exc())
             logging.info("Trouble in updatePv with "+ str(e))
             cothread.Quit()
     def findServer(self,type,name):
@@ -217,7 +219,7 @@ def on_message(client, userdata, msg):
 script_dir = os.path.dirname(__file__)
 
 config_info = openConfigFile(os.path.join(script_dir,"gateway_config.json"))
-app = cothread.iqt()
+app = cothread.iqt()#run_exec=False)
 
 logging.basicConfig(filename=os.path.join(script_dir,'info.log'), level=logging.INFO)
 logging.info("Start")
