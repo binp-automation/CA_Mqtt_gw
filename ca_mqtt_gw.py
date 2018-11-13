@@ -50,29 +50,32 @@ class PvMqttChan:
             print(self.chan+" connection set")
         except Exception as e:
             print("Trouble with connection " + str(e))
-            cothread.Quit()
+            #cothread.Quit()
     def updateChan(self,value):
         try:
-            if self.datatype=="wf":
+            if self.datatype=="wfint":
                 self.sendWf(value)
             else:
                 self.client.publish(self.chan,value,self.qos, self.retain)
         except Exception as e:
             print("Trouble when Publishing to Mqtt with "+self.chan+": "+ str(e))
             logging.info("Trouble when Publishing to Mqtt with "+self.chan+": "+ str(e))
-            cothread.Quit()
+            #cothread.Quit()
     def updatePv(self,value):
         try:
             pv_val = value
-            if self.datatype == "wf":
-                pv_val = self.wfToWf(value)
-            elif self.datatype == "int":
-                pv_val = self.intToScalar(value)
+            if self.datatype == "wfint":
+                self.wfToWf(value)
+            else:
+                if self.datatype == "wfint1":
+                    pv_val = self.wfToScalar(value)
+                elif self.datatype == "int":
+                    pv_val = self.intToScalar(value)
                 cothread.Callback(caput,self.pv,pv_val)
         except Exception as e:
             print("Trouble when Publishing to PV with "+self.pv+": "+ str(e))
             logging.info("Trouble when Publishing to PV with "+self.pv+": "+ str(e))
-            cothread.Quit()
+            #cothread.Quit()
     def findServer(self,type,name):
         result = [x for x in self.servers if x.type == type and x.name == name]
         if len(result) != 0:
@@ -167,8 +170,12 @@ class WaveForm:
             client.publish(msgaddress,self.messages[i],qos)
             time.sleep(sleeptime)
     def sendWfToPv(self,pv_name):
-        if len(self.msg)!=0:
-            cothread.Callback(caput,pv_name,self.msg,repeat_value = True)
+        try:
+            if len(self.msg)!=0:
+                cothread.Callback(caput,pv_name,self.msg)
+        except Exception as e:
+            print("Trouble when Publishing to PV with "+pv_name+": "+ str(e))
+            logging.info("Trouble when Publishing to PV with "+pv_name+": "+ str(e))
 
 
 class Server:
