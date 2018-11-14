@@ -6,7 +6,7 @@ from cothread.catools import *
 import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-#from PyQt4 import QtCore
+from PyQt4 import QtCore
 import json
 import time
 import sys
@@ -236,7 +236,8 @@ def on_message(client, userdata, msg):
 script_dir = os.path.dirname(__file__)
 
 config_info = openConfigFile(os.path.join(script_dir,"gateway_config.json"))
-app = cothread.iqt()#run_exec=False)
+qapp = QtCore.QCoreApplication(sys.argv)
+#app = cothread.iqt()#run_exec=False)
 
 logging.basicConfig(filename=os.path.join(script_dir,'info.log'), level=logging.INFO)
 logging.info("Start")
