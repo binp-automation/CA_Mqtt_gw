@@ -6,7 +6,7 @@ from cothread.catools import *
 import signal
 signal.signal(signal.SIGINT, signal.SIG_DFL)
 
-from PyQt4 import QtCore
+#from PyQt4 import QtCore
 import json
 import time
 import sys
@@ -15,6 +15,8 @@ import array
 import struct
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
+
+import traceback
 
 import logging
 
@@ -49,7 +51,7 @@ class PvMqttChan:
                 camonitor(self.pv,self.updateChan)
             print(self.chan+" connection set")
         except Exception as e:
-            print("Trouble with connection " + str(e))
+            print("Trouble with connection:\n" + traceback.format_exc())
             #cothread.Quit()
     def updateChan(self,value):
         try:
@@ -58,7 +60,7 @@ class PvMqttChan:
             else:
                 self.client.publish(self.chan,value,self.qos, self.retain)
         except Exception as e:
-            print("Trouble when Publishing to Mqtt with "+self.chan+": "+ str(e))
+            print("Trouble when Publishing to Mqtt with " + self.chan + ":\n" + traceback.format_exc())
             logging.info("Trouble when Publishing to Mqtt with "+self.chan+": "+ str(e))
             #cothread.Quit()
     def updatePv(self,value):
@@ -73,7 +75,7 @@ class PvMqttChan:
                     pv_val = self.intToScalar(value)
                 cothread.Callback(caput,self.pv,pv_val)
         except Exception as e:
-            print("Trouble when Publishing to PV with "+self.pv+": "+ str(e))
+            print("Trouble in updatePv with " + self.pv + ":\n" + traceback.format_exc())
             logging.info("Trouble when Publishing to PV with "+self.pv+": "+ str(e))
             #cothread.Quit()
     def findServer(self,type,name):
@@ -118,6 +120,8 @@ class PvMqttChan:
         else:
             waveforms[wfid] = WaveForm(id=wfid,msgsize=msgsize,first_msg=message)
         waveforms[wfid].sendWfToPv(self.pv)
+        # TODO:
+        #del waveforms[wfid]
 
 
 class WaveForm:
@@ -137,7 +141,7 @@ class WaveForm:
         self.msg = self.unpackWf()
     def unpackWf(self):
         wf = []
-        n_segments = self.msgsize//self.maxsize+1
+        n_segments = (self.msgsize - 1)//self.maxsize + 1
         if n_segments > len(self.messages):
             return wf
         last_segment_size = self.msgsize%self.maxsize
@@ -152,7 +156,7 @@ class WaveForm:
         pack = []
         if self.msgsize==0:
             return pack
-        n_segments = self.msgsize/self.maxsize+1
+        n_segments = (self.msgsize - 1)//self.maxsize + 1
         last_segment_size = self.msgsize%self.maxsize
         segment_size = self.maxsize
         for i in range(n_segments):
@@ -171,6 +175,8 @@ class WaveForm:
             time.sleep(sleeptime)
     def sendWfToPv(self,pv_name):
         try:
+            print("[debug] self.msg: %s" % self.msg);
+            print("[debug] len(self.msg): %s" % len(self.msg));
             if len(self.msg)!=0:
                 cothread.Callback(caput,pv_name,self.msg)
         except Exception as e:
@@ -224,7 +230,7 @@ def on_message(client, userdata, msg):
 script_dir = os.path.dirname(__file__)
 
 config_info = openConfigFile(os.path.join(script_dir,"gateway_config.json"))
-app = cothread.iqt()
+app = cothread.iqt()#run_exec=False)
 
 logging.basicConfig(filename=os.path.join(script_dir,'info.log'), level=logging.INFO)
 logging.info("Start")

@@ -24,7 +24,7 @@
         "mqtt": "VEPP3/H/DAC/rb",
         "pv": "VEPP3_H_Iset-RB",
         "direction": "mp",
-        "datatype": "int",
+        "datatype": "wfint",
         "qos": 2
     },
     {
