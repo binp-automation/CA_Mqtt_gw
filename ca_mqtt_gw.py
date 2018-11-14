@@ -46,7 +46,10 @@ class PvMqttChan:
         try:
             catools.connect(self.pv)
             if self.direction=="mp":
-                self.client.subscribe(self.chan)
+                if self.datatype == "wfint":
+                    self.client.subscribe(self.chan+"#")
+                else:
+                    self.client.subscribe(self.chan)
             elif self.direction=="pm":
                 camonitor(self.pv,self.updateChan)
             print(self.chan+" connection set")
@@ -116,12 +119,12 @@ class PvMqttChan:
         wfid = int(message[0])
         msgsize = int(message[1])
         if wfid in waveforms:
+            #print(wfid)
             waveforms[wfid].appendMessage(message)
         else:
             waveforms[wfid] = WaveForm(id=wfid,msgsize=msgsize,first_msg=message)
-        waveforms[wfid].sendWfToPv(self.pv)
-        # TODO:
-        #del waveforms[wfid]
+        if waveforms[wfid].sendWfToPv(self.pv):
+            del waveforms[wfid]
 
 
 class WaveForm:
@@ -142,6 +145,7 @@ class WaveForm:
     def unpackWf(self):
         wf = []
         n_segments = (self.msgsize - 1)//self.maxsize + 1
+        #print(n_segments)
         if n_segments > len(self.messages):
             return wf
         last_segment_size = self.msgsize%self.maxsize
@@ -175,10 +179,12 @@ class WaveForm:
             time.sleep(sleeptime)
     def sendWfToPv(self,pv_name):
         try:
-            print("[debug] self.msg: %s" % self.msg);
-            print("[debug] len(self.msg): %s" % len(self.msg));
+            #print("[debug] self.msg: %s" % self.msg);
+            #print("[debug] len(self.msg): %s" % len(self.msg));
             if len(self.msg)!=0:
                 cothread.Callback(caput,pv_name,self.msg)
+                return True
+            return False
         except Exception as e:
             print("Trouble when Publishing to PV with "+pv_name+": "+ str(e))
             logging.info("Trouble when Publishing to PV with "+pv_name+": "+ str(e))
@@ -212,7 +218,7 @@ def unicodeToStr(name):
 def getChannel(channame):
     global chans
     for chan in chans:
-        if chan.chan == channame:
+        if channame.startswith(chan.chan):
             return chan
 
 def on_connect(client, userdata, flags, rc):
