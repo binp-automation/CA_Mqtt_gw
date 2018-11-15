@@ -60,6 +60,8 @@ class PvMqttChan:
         try:
             if self.datatype=="wfint":
                 self.sendWf(value)
+            elif self.datatype=="int":
+                self.client.publish(self.chan, struct.pack(">i", value), self.qos, self.retain)
             else:
                 self.client.publish(self.chan,value,self.qos, self.retain)
         except Exception as e:
@@ -251,7 +253,7 @@ client = mqtt.Client()
 
 client.on_connect = on_connect
 client.on_message = on_message
-client.connect("192.168.176.128")
+client.connect("192.168.144.86")
 
 for connection in config_info:
     channel = PvMqttChan(connection,servers,client)
