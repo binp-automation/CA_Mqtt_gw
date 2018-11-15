@@ -70,7 +70,7 @@ class PvMqttChan:
                 camonitor(self.pv,self.updateChan)
             logger.info(self.chan + " connection set")
         except Exception as e:
-            logger.error("Trouble with connection with " + self.pv + ": " + str(e))
+            logger.error("Trouble with connection with " + self.pv + " or " + self.chan + ": " + str(e))
             logger.debug(traceback.format_exc())
             #cothread.Quit()
     def updateChan(self,value):
@@ -252,12 +252,12 @@ def on_message(client, userdata, msg):
     getChannel(msg.topic).updatePv(msg.payload)
 
 try:
-    config_path = "gateway_config.json" # default config file
+    config_path = os.path.join(script_dir, "gateway_config.json") # default config file
     if len(sys.argv) > 1:
         # config path given as cmdline argument
         config_path = sys.argv[1]
 
-    config_info = openConfigFile(os.path.join(script_dir, config_path))
+    config_info = openConfigFile(config_path)
     qapp = QtCore.QCoreApplication(sys.argv)
     #app = cothread.iqt()#run_exec=False)
 
@@ -279,7 +279,7 @@ try:
         chans.append(channel)
 
     client.loop_start()
-except:
+except Exception as e:
     logger.error("Initialization error: " + str(e))
     logger.error(traceback.format_exc())
     exit(1)
