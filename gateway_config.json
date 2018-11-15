@@ -1,100 +1,103 @@
-[
-    {
-        "mqtt": "VEPP3/H/DAC/wf",
-        "pv": "VEPP3_H_Iwf-SP",
-        "direction": "pm",
-        "datatype": "wfint",
-        "qos": 1
-    },
-    {
-        "mqtt": "VEPP3/H/DI",
-        "pv": "VEPP3_H_DI-I",
-        "direction": "mp",
-        "datatype": "int",
-        "qos": 1
-    },
-    {
-        "mqtt": "VEPP3/H/DO",
-        "pv": "VEPP3_H_DO-SP",
-        "direction": "pm",
-        "datatype": "int",
-        "qos": 1
-    },
-    {
-        "mqtt": "VEPP3/H/DAC/wf/mode",
-        "pv": "VEPP3_H_Iwf_mode-SP",
-        "direction": "pm",
-        "datatype": "int",
-        "qos": 1
-    },
-    {
-        "mqtt": "VEPP3/H/DAC/wf/operation",
-        "pv": "VEPP3_H_Iwf_op-SP",
-        "direction": "pm",
-        "datatype": "int",
-        "qos": 1
-    },
-    {
-        "mqtt": "VEPP3/H/DAC/rb/",
-        "pv": "VEPP3_H_Iset-RB",
-        "direction": "mp",
-        "datatype": "wfint",
-        "qos": 2
-    },
-    {
-        "mqtt": "VEPP3/H/ADC/02/",
-        "pv": "VEPP3_H_DAC-I",
-        "direction": "mp",
-        "datatype": "wfint",
-        "qos": 2
-    },
-    {
-        "mqtt": "VEPP3/H/ADC/00/",
-        "pv": "VEPP3_H_I-I",
-        "direction": "mp",
-        "datatype": "wfint",
-        "qos": 2
-    },
-    {
-        "mqtt": "VEPP3/H/ADC/01/",
-        "pv": "VEPP3_H_U-I",
-        "direction": "mp",
-        "datatype": "wfint",
-        "qos": 2
-    },
-    {
-        "mqtt": "VEPP3/H/ADC/03/000",
-        "pv": "VEPP3_H_temperature-I",
-        "direction": "mp",
-        "datatype": "wfint1",
-        "qos": 2
-    },
-    {
-        "mqtt": "VEPP3/H/restarted",
-        "pv": "VEPP3_H_Restarted-I",
-        "direction": "mp",
-        "datatype": "int",
-        "qos": 1
-    },
-    {
-        "mqtt": "192.168.146.11/restarted",
-        "pv": "192_168_146_11/restarted",
-        "direction": "mp",
-        "datatype": "int",
-        "qos": 1
-    },
-    {
-        "mqtt": "192.168.146.11/config/name",
-        "pv": "192_168_146_11/config/name",
-        "direction": "pm",
-        "datatype": "string",
-        "qos": 1
-    },
-    {
-        "mqtt": "192.168.146.11/connection/status",
-        "pv": "192_168_146_11/connection/status",
-        "direction": "mp",
-        "datatype": "string",
-        "qos": 1
-    }
-]
+{
+    "mqtt_broker_address": "192.168.176.128",
+    "connections": [
+        {
+            "mqtt": "VEPP3/H/DAC/wf",
+            "pv": "VEPP3_H_Iwf-SP",
+            "direction": "pm",
+            "datatype": "wfint",
+            "qos": 1
+        },
+        {
+            "mqtt": "VEPP3/H/DI",
+            "pv": "VEPP3_H_DI-I",
+            "direction": "mp",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "VEPP3/H/DO",
+            "pv": "VEPP3_H_DO-SP",
+            "direction": "pm",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "VEPP3/H/DAC/wf/mode",
+            "pv": "VEPP3_H_Iwf_mode-SP",
+            "direction": "pm",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "VEPP3/H/DAC/wf/operation",
+            "pv": "VEPP3_H_Iwf_op-SP",
+            "direction": "pm",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "VEPP3/H/DAC/rb/",
+            "pv": "VEPP3_H_Iset-RB",
+            "direction": "mp",
+            "datatype": "wfint",
+            "qos": 2
+        },
+        {
+            "mqtt": "VEPP3/H/ADC/02/",
+            "pv": "VEPP3_H_DAC-I",
+            "direction": "mp",
+            "datatype": "wfint",
+            "qos": 2
+        },
+        {
+            "mqtt": "VEPP3/H/ADC/00/",
+            "pv": "VEPP3_H_I-I",
+            "direction": "mp",
+            "datatype": "wfint",
+            "qos": 2
+        },
+        {
+            "mqtt": "VEPP3/H/ADC/01/",
+            "pv": "VEPP3_H_U-I",
+            "direction": "mp",
+            "datatype": "wfint",
+            "qos": 2
+        },
+        {
+            "mqtt": "VEPP3/H/ADC/03/000",
+            "pv": "VEPP3_H_temperature-I",
+            "direction": "mp",
+            "datatype": "wfint1",
+            "qos": 2
+        },
+        {
+            "mqtt": "VEPP3/H/restarted",
+            "pv": "VEPP3_H_Restarted-I",
+            "direction": "mp",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "192.168.146.11/restarted",
+            "pv": "192_168_146_11/restarted",
+            "direction": "mp",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "192.168.146.11/config/name",
+            "pv": "192_168_146_11/config/name",
+            "direction": "pm",
+            "datatype": "string",
+            "qos": 1
+        },
+        {
+            "mqtt": "192.168.146.11/connection/status",
+            "pv": "192_168_146_11/connection/status",
+            "direction": "mp",
+            "datatype": "string",
+            "qos": 1
+        }
+    ]
+}
