@@ -7,8 +7,15 @@
         "qos": 1
     },
     {
-        "mqtt": "VEPP3/H/DAC/wf/start",
-        "pv": "VEPP3_H_Iwf_op-SP",
+        "mqtt": "VEPP3/H/DI",
+        "pv": "VEPP3_H_DI-I",
+        "direction": "mp",
+        "datatype": "int",
+        "qos": 1
+    },
+    {
+        "mqtt": "VEPP3/H/DO",
+        "pv": "VEPP3_H_DO-SP",
         "direction": "pm",
         "datatype": "int",
         "qos": 1
@@ -17,7 +24,14 @@
         "mqtt": "VEPP3/H/DAC/wf/mode",
         "pv": "VEPP3_H_Iwf_mode-SP",
         "direction": "pm",
-        "datatype": "string",
+        "datatype": "int",
+        "qos": 1
+    },
+    {
+        "mqtt": "VEPP3/H/DAC/wf/operation",
+        "pv": "VEPP3_H_Iwf_op-SP",
+        "direction": "pm",
+        "datatype": "int",
         "qos": 1
     },
     {
@@ -28,24 +42,31 @@
         "qos": 2
     },
     {
-        "mqtt": "VEPP3/H/ADC/01/",
+        "mqtt": "VEPP3/H/ADC/02/",
         "pv": "VEPP3_H_DAC-I",
         "direction": "mp",
         "datatype": "wfint",
         "qos": 2
     },
     {
-        "mqtt": "VEPP3/H/ADC/02/",
+        "mqtt": "VEPP3/H/ADC/00/",
         "pv": "VEPP3_H_I-I",
         "direction": "mp",
         "datatype": "wfint",
         "qos": 2
     },
     {
-        "mqtt": "VEPP3/H/ADC/03/",
+        "mqtt": "VEPP3/H/ADC/01/",
         "pv": "VEPP3_H_U-I",
         "direction": "mp",
         "datatype": "wfint",
+        "qos": 2
+    },
+    {
+        "mqtt": "VEPP3/H/ADC/03/000",
+        "pv": "VEPP3_H_temperature-I",
+        "direction": "mp",
+        "datatype": "wfint1",
         "qos": 2
     },
     {
