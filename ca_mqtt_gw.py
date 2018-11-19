@@ -20,6 +20,22 @@ import traceback
 
 import logging
 
+script_dir = os.path.dirname(__file__)
+
+# configure logging to write both to file and stdout
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+
+sh = logging.StreamHandler()
+sh.setLevel(logging.DEBUG)
+sh.setFormatter(logging.Formatter('[%(levelname)s] %(message)s'))
+logger.addHandler(sh)
+
+fh = logging.FileHandler(os.path.join(script_dir,'info.log'))
+fh.setLevel(logging.INFO)
+fh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', datefmt='%d-%m-%Y %H:%M:%S'))
+logger.addHandler(fh)
+
 chans = []
 id = 0
 waveforms = {}
@@ -52,9 +68,10 @@ class PvMqttChan:
                     self.client.subscribe(self.chan)
             elif self.direction=="pm":
                 camonitor(self.pv,self.updateChan)
-            print(self.chan+" connection set")
+            logger.info(self.chan + " connection set")
         except Exception as e:
-            print("Trouble with connection:\n" + traceback.format_exc())
+            logger.error("Trouble with connection with " + self.pv + " or " + self.chan + ": " + str(e))
+            logger.debug(traceback.format_exc())
             #cothread.Quit()
     def updateChan(self,value):
         try:
@@ -65,8 +82,8 @@ class PvMqttChan:
             else:
                 self.client.publish(self.chan,value,self.qos, self.retain)
         except Exception as e:
-            print("Trouble when Publishing to Mqtt with " + self.chan + ":\n" + traceback.format_exc())
-            logging.info("Trouble when Publishing to Mqtt with "+self.chan+": "+ str(e))
+            logger.error("Trouble when Publishing to Mqtt with " + self.chan + ": " + str(e))
+            logger.debug(traceback.format_exc())
             #cothread.Quit()
     def updatePv(self,value):
         try:
@@ -80,8 +97,8 @@ class PvMqttChan:
                     pv_val = self.intToScalar(value)
                 cothread.Callback(caput,self.pv,pv_val)
         except Exception as e:
-            print("Trouble in updatePv with " + self.pv + ":\n" + traceback.format_exc())
-            logging.info("Trouble when Publishing to PV with "+self.pv+": "+ str(e))
+            logger.error("Trouble in updatePv with " + self.pv + ": " + str(e))
+            logger.debug(traceback.format_exc())
             #cothread.Quit()
     def findServer(self,type,name):
         result = [x for x in self.servers if x.type == type and x.name == name]
@@ -188,8 +205,8 @@ class WaveForm:
                 return True
             return False
         except Exception as e:
-            print("Trouble when Publishing to PV with "+pv_name+": "+ str(e))
-            logging.info("Trouble when Publishing to PV with "+pv_name+": "+ str(e))
+            logger.error("Trouble when Publishing to PV with " + pv_name + ": " + str(e))
+            logger.debug(traceback.format_exc())
 
 
 class Server:
@@ -225,42 +242,47 @@ def getChannel(channame):
 
 def on_connect(client, userdata, flags, rc):
     global chans
-    print("Connected with result code "+str(rc))
+    logger.info("Connected with result code " + str(rc))
     #for channel in chans:
     #    channel.setConnection()
 
 
 def on_message(client, userdata, msg):
-    print(msg.topic)
+    logger.info(msg.topic)
     getChannel(msg.topic).updatePv(msg.payload)
 
+try:
+    config_path = os.path.join(script_dir, "gateway_config.json") # default config file
+    if len(sys.argv) > 1:
+        # config path given as cmdline argument
+        config_path = sys.argv[1]
 
-script_dir = os.path.dirname(__file__)
+    config_info = openConfigFile(config_path)
+    qapp = QtCore.QCoreApplication(sys.argv)
+    #app = cothread.iqt()#run_exec=False)
 
-config_info = openConfigFile(os.path.join(script_dir,"gateway_config.json"))
-qapp = QtCore.QCoreApplication(sys.argv)
-#app = cothread.iqt()#run_exec=False)
+    logger.info("Start")
 
-logging.basicConfig(filename=os.path.join(script_dir,'info.log'), level=logging.INFO)
-logging.info("Start")
-
-servers = []
-servers.extend((Server("ioc","VEPP3"),Server("mqtt","VEPP3")))
+    servers = []
+    servers.extend((Server("ioc","VEPP3"),Server("mqtt","VEPP3")))
 
 
-client = mqtt.Client()
+    client = mqtt.Client()
 
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(config_info["mqtt_broker_address"])
 
-client.on_connect = on_connect
-client.on_message = on_message
-client.connect("192.168.144.86")
+    for connection in config_info["connections"]:
+        channel = PvMqttChan(connection,servers,client)
+        channel.setConnection()
+        chans.append(channel)
 
-for connection in config_info:
-    channel = PvMqttChan(connection,servers,client)
-    channel.setConnection()
-    chans.append(channel)
-
-client.loop_start()
+    client.loop_start()
+except Exception as e:
+    logger.error("Initialization error: " + str(e))
+    logger.error(traceback.format_exc())
+    exit(1)
 
 try:
     cothread.WaitForQuit()
