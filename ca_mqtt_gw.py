@@ -71,7 +71,7 @@ class PvMqttChan:
             logger.info(self.chan + " connection set")
         except Exception as e:
             logger.error("Trouble with connection with " + self.pv + " or " + self.chan + ": " + str(e))
-            logger.debug(traceback.format_exc())
+            logger.info(traceback.format_exc())
             #cothread.Quit()
     def updateChan(self,value):
         try:
@@ -81,9 +81,10 @@ class PvMqttChan:
                 self.client.publish(self.chan, struct.pack(">i", value), self.qos, self.retain)
             else:
                 self.client.publish(self.chan,value,self.qos, self.retain)
+            logger.debug(".updateChan(%s, %s)" % (self.chan, repr(value)))
         except Exception as e:
             logger.error("Trouble when Publishing to Mqtt with " + self.chan + ": " + str(e))
-            logger.debug(traceback.format_exc())
+            logger.info(traceback.format_exc())
             #cothread.Quit()
     def updatePv(self,value):
         try:
@@ -96,9 +97,10 @@ class PvMqttChan:
                 elif self.datatype == "int":
                     pv_val = self.intToScalar(value)
                 cothread.Callback(caput,self.pv,pv_val)
+            logger.debug(".updatePv(%s, %s)" % (self.pv, repr(value)))
         except Exception as e:
             logger.error("Trouble in updatePv with " + self.pv + ": " + str(e))
-            logger.debug(traceback.format_exc())
+            logger.info(traceback.format_exc())
             #cothread.Quit()
     def findServer(self,type,name):
         result = [x for x in self.servers if x.type == type and x.name == name]
@@ -198,15 +200,15 @@ class WaveForm:
             time.sleep(sleeptime)
     def sendWfToPv(self,pv_name):
         try:
-            #print("[debug] self.msg: %s" % self.msg);
-            #print("[debug] len(self.msg): %s" % len(self.msg));
+            #print("[info] self.msg: %s" % self.msg);
+            #print("[info] len(self.msg): %s" % len(self.msg));
             if len(self.msg)!=0:
                 cothread.Callback(caput,pv_name,self.msg)
                 return True
             return False
         except Exception as e:
             logger.error("Trouble when Publishing to PV with " + pv_name + ": " + str(e))
-            logger.debug(traceback.format_exc())
+            logger.info(traceback.format_exc())
 
 
 class Server:
@@ -248,7 +250,7 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, msg):
-    logger.info(msg.topic)
+    logger.debug(".on_message(topic=%s)" % repr(msg.topic))
     getChannel(msg.topic).updatePv(msg.payload)
 
 try:
