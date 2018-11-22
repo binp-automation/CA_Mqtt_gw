@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import numpy as np
+from queue import Queue
+from threading import Thread
 
 import cothread.catools as catools
 import cothread
@@ -20,7 +22,7 @@ import paho.mqtt.publish as publish
 import traceback
 import logging
 
-from mqttconv import MqttConv
+import mqttconv
 
 script_dir = os.path.dirname(__file__)
 
@@ -39,15 +41,15 @@ fh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', dat
 logger.addHandler(fh)
 
 chans = []
-waveforms = {}
 
 # predefined constants
-SEGMENT_SIZE = 1208 # bytes
+CONV_CFG = {
+    "segment_size_max": 1208, # bytes
+    "segment_index_digits": 3, # decimal digits count in segment index
+    "waveform_queue_size": 3, # difference between waveform ids 
+                              # that enough to drop an old incomplete ones
+}
 MQTT_DELAY = 0.07 # seconds
-SEGIDX_DIGCNT = 3 # decimal digits count in segment index
-SEGIDX_MOD = 10**SEGIDX_DIGCNT # max segment index value + 1
-WF_DROP_DIFF = 3 # difference between waveform ids 
-                 # that enough to drop an old incomplete ones
 
 class PvMqttChan:
     def __init__(self,connection,servers,client):
@@ -68,15 +70,15 @@ class PvMqttChan:
         self.servers = servers
         self.client = client
 
-        self.conv = MqttConv(segment_size=SEGMENT_SIZE)
-        self.wfaccum = WfAccum(segidx_mod=SEGIDX_MOD, wf_drop_diff=WF_DROP_DIFF)
-        self.wfid_cnt = 0
+        self.conv = mqttconv.get(self.datatype, CONV_CFG)
 
-    
+        self.queue = Queue()
+        self.thread = Thread(target=self.updateChanLoop)
 
     def setConnection(self):
         try:
             logger.debug(".setConnection(%s, %s)" % (self.pv, self.chan))
+            
             catools.connect(self.pv)
             if self.direction=="mp":
                 if self.datatype == "wfint":
@@ -84,34 +86,30 @@ class PvMqttChan:
                 else:
                     self.client.subscribe(self.chan)
             elif self.direction=="pm":
-                camonitor(self.pv,self.updateChan)
+                self.thread.start()
+                camonitor(self.pv, self.pushValue)
+
             logger.info(self.chan + " connection set")
+
         except Exception as e:
             logger.error("Trouble with connection with " + self.pv + " or " + self.chan + ": " + str(e))
             logger.info(traceback.format_exc())
             #cothread.Quit()
 
+    def pushValue(self, value):
+        self.queue.put(value)
+
+    def updateChanLoop(self):
+        while True:
+            self.updateChan(self.queue.get())
+
     def updateChan(self, value):
         try:
             logger.debug(".updateChan(%s, %s)" % (self.chan, repr(value)))
-            
-            if self.datatype == "wfint":
-                value = (self.wfid_cnt, np.array(value))
-                self.wfid_cnt += 1
-            if self.datatype == "wfint1":
-                value = (self.wfid_cnt, value)
-                self.wfid_cnt += 1
 
-            payload = self.conv.encode(value, self.datatype)
-
-            if self.datatype == "wfint":
-                for i, seg in enumerate(payload):
-                    topic = self.chan + str(i % SEGIDX_MOD).zfill(SEGIDX_DIGCNT)
-                    self.client.publish(topic, seg, self.qos)
-                    time.sleep(MQTT_DELAY)
-            else:
-                self.client.publish(self.chan, payload, self.qos, self.retain)
-                #time.sleep(MQTT_DELAY)
+            for topic, payload in self.conv.encode(self.chan, value):
+                self.client.publish(topic, payload, self.qos, self.retain)
+                time.sleep(MQTT_DELAY)
 
         except Exception as e:
             logger.error("Trouble when Publishing to Mqtt with " + self.chan + ": " + str(e))
@@ -120,14 +118,12 @@ class PvMqttChan:
 
     def updatePv(self, topic, payload):
         try:
-            value = self.conv.decode(payload, self.datatype)
-            if self.datatype == "wfint":
-                idx = int(topic.split("/")[-1])
-                wfid, size, array = value
-                value = self.pushWfSegment(idx, wfid, size, array)
+            logger.debug(".updatePv(%s, %s, %s)" % (self.pv, repr(topic), repr(payload)))
+
+            value = self.conv.decode(topic, payload)
             if value is not None:
-                cothread.Callback(caput, self.pv, value)
-            logger.debug(".updatePv(%s, %s, %s)" % (self.pv, repr(payload), value))
+                cothread.CallbackResult(caput, self.pv, value)
+
         except Exception as e:
             logger.error("Trouble in updatePv with " + self.pv + ": " + str(e))
             logger.info(traceback.format_exc())
@@ -155,28 +151,6 @@ class PvMqttChan:
         if server:
             server.delayServer()
             return
-    def sendWf(self,wf):
-        global id
-        waveform = WaveForm(id,wf)
-        waveform.sendWfToMqtt(self.client,self.chan,self.qos,0.07)
-        id+=1
-    def wfToScalar(self,wf):
-        return float(struct.unpack(">iii",wf)[2])
-    def intToScalar(self,wf):
-        return float(struct.unpack(">i",wf)[0])
-    def wfToWf(self,wf):
-        global waveforms
-        wflen = len(wf)//4
-        message = struct.unpack(">%ui"%wflen,wf)
-        wfid = int(message[0])
-        msgsize = int(message[1])
-        if wfid in waveforms:
-            #print(wfid)
-            waveforms[wfid].appendMessage(message)
-        else:
-            waveforms[wfid] = WaveForm(id=wfid,msgsize=msgsize,first_msg=message)
-        if waveforms[wfid].sendWfToPv(self.pv):
-            del waveforms[wfid]
 
 class Server:
     def __init__(self,type,name,timestamp=None):
