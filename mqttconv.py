@@ -68,10 +68,7 @@ class MqttConvWfInt(MqttConv):
         self.si_dig = convcfg["segment_index_digits"]
         self.si_mod = 10**self.si_dig
 
-        self.wfaccum = WfAccum(
-            idxmod=self.si_mod,
-            wfdd=convcfg["waveform_queue_size"]
-        )
+        self.wfaccum = WfAccum(convcfg["waveform_queue_size"])
 
     def wfid_next(self):
         wfid = self.wfidcnt;
@@ -131,9 +128,6 @@ def get(dtype, convcfg):
 
 
 class Test(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-
     def test_int(self):
         conv = get("int", {})
         pairs = [

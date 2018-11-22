@@ -3,17 +3,6 @@ import numpy as np
 import unittest
 
 
-# Modular difference between `a` and `b` with modulus `m`
-#   (moddiff(a, b, m) == a - b) mod m
-#   -m//2 < moddiff(a, b, m) <= m//2 
-#   assume that 0 <= a < m, 0 <= b < m
-def moddiff(a, b, m):
-    d = (a - b) % m
-    if d > m//2:
-        d -= m
-    return d
-
-
 # Waveform concatenator
 #   joins segments of one waveform
 class WfCat:
@@ -52,15 +41,14 @@ class WfCat:
 #   collects different wavefrom segments, drops outdated waveforms
 #   returns waveform when it is complete
 class WfAccum:
-    def __init__(self, idxmod, wfdd):
-        self.idxmod = idxmod # segment index modulus
+    def __init__(self, wfdd):
         self.wfdd = wfdd # waveform id drop distance
         self.wfs = {}
 
     def push(self, wfid, idx, size, array):
         # remove distant incomplete waveforms
         for key in list(self.wfs.keys()):
-            d = moddiff(key, wfid, self.idxmod)
+            d = key - wfid
             if d > 2*self.wfdd or d < -self.wfdd:
                 del self.wfs[key]
 
@@ -77,8 +65,7 @@ class WfAccum:
             wf = cat.join()
             # remove previous incomplete waveforms
             for key in list(self.wfs.keys()):
-                d = moddiff(key, wfid, self.idxmod)
-                if d < 0:
+                if key < wfid:
                     del self.wfs[key]
             return (wfid, wf)
         return None
@@ -90,16 +77,6 @@ def wfcmp(wfa, wfb):
 
 # Unittests
 class Test(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        unittest.TestCase.__init__(self, *args, **kwargs)
-
-    def test_moddiff(self):
-        self.assertEqual(moddiff(2, 1, 3), 1)
-        self.assertEqual(moddiff(1, 2, 3), -1)
-        self.assertEqual(moddiff(1, 1, 3), 0)
-        self.assertEqual(moddiff(5, -5, 10), 0)
-        self.assertEqual(moddiff(0, 9, 10), 1)
-
     def test_wfcat(self):
         cat = WfCat(10)
         self.assertFalse(cat.add(0, np.array([0, 1, 2])))
@@ -156,7 +133,7 @@ class Test(unittest.TestCase):
             cat.join()
 
     def test_wfaccum(self):
-        accum = WfAccum(10, 2)
+        accum = WfAccum(2)
         self.assertIsNone(accum.push(1, 0, 6, np.array([0, 1])))
         self.assertIsNone(accum.push(1, 2, 6, np.array([4, 5])))
         self.assertTrue(wfcmp(
@@ -165,7 +142,7 @@ class Test(unittest.TestCase):
         ))
 
     def test_wfaccum_1212(self):
-        accum = WfAccum(10, 2)
+        accum = WfAccum(2)
         self.assertIsNone(accum.push(1, 0, 4, np.array([10, 11])))
         self.assertIsNone(accum.push(2, 0, 4, np.array([20, 21])))
         self.assertTrue(wfcmp(
@@ -178,7 +155,7 @@ class Test(unittest.TestCase):
         ))
 
     def test_wfaccum_1221(self):
-        accum = WfAccum(10, 2)
+        accum = WfAccum(2)
         self.assertIsNone(accum.push(1, 0, 4, np.array([10, 11])))
         self.assertIsNone(accum.push(2, 0, 4, np.array([20, 21])))
         self.assertTrue(wfcmp(
@@ -188,7 +165,7 @@ class Test(unittest.TestCase):
         self.assertIsNone(accum.push(1, 1, 4, np.array([12, 13])))
 
     def test_wfaccum_drop(self):
-        accum = WfAccum(10, 2)
+        accum = WfAccum(2)
         self.assertIsNone(accum.push(1, 0, 4, np.array([10, 11])))
         self.assertIsNone(accum.push(2, 0, 4, np.array([20, 21])))
         self.assertIsNone(accum.push(3, 0, 4, np.array([30, 31])))
@@ -204,7 +181,7 @@ class Test(unittest.TestCase):
         ))
 
     def test_wfaccum_size_err(self):
-        accum = WfAccum(10, 2)
+        accum = WfAccum(2)
         self.assertIsNone(accum.push(1, 0, 4, np.array([0, 1])))
         with self.assertRaises(ValueError):
             accum.push(1, 1, 6, np.array([2, 3, 4, 5]))

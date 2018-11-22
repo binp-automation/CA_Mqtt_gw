@@ -108,7 +108,7 @@ class PvMqttChan:
             logger.debug(".updateChan(%s, %s)" % (self.chan, repr(value)))
 
             for topic, payload in self.conv.encode(self.chan, value):
-                self.client.publish(topic, payload, self.qos, self.retain)
+                self.client.publish(topic, payload, self.qos, self.retain).wait_for_publish()
                 time.sleep(MQTT_DELAY)
 
         except Exception as e:
