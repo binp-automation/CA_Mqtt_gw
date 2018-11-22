@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
+
 import cothread.catools as catools
 import cothread
 from cothread.catools import *
@@ -13,13 +14,13 @@ import time
 import sys
 import os
 import array
-import struct
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 
 import traceback
-
 import logging
+
+from mqttconv import MqttConv
 
 script_dir = os.path.dirname(__file__)
 
@@ -38,23 +39,15 @@ fh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', dat
 logger.addHandler(fh)
 
 chans = []
-id = 0
 waveforms = {}
 
 # predefined constants
 SEGMENT_SIZE = 1208 # bytes
 MQTT_DELAY = 0.07 # seconds
-SEGIDX_MOD = 1000 # max segment index value + 1
+SEGIDX_DIGCNT = 3 # decimal digits count in segment index
+SEGIDX_MOD = 10**SEGIDX_DIGCNT # max segment index value + 1
 WF_DROP_DIFF = 3 # difference between waveform ids 
                  # that enough to drop an old incomplete ones
-
-def moddiff(a, b, m):
-    d = a - b
-    if d < -m/2:
-        d += m
-    elif d > m/2:
-        d -= m
-    return d
 
 class PvMqttChan:
     def __init__(self,connection,servers,client):
@@ -75,33 +68,15 @@ class PvMqttChan:
         self.servers = servers
         self.client = client
 
-        self.converter = MqttDataConverter(segment_size=SEGMENT_SIZE)
-        self.wfaccums = {}
-        self.wfid_cnt = 1
+        self.conv = MqttConv(segment_size=SEGMENT_SIZE)
+        self.wfaccum = WfAccum(segidx_mod=SEGIDX_MOD, wf_drop_diff=WF_DROP_DIFF)
+        self.wfid_cnt = 0
 
-    def pushWfSegment(self, wfid, size, array):
-        # remove distant incomplete waveforms
-        for key in self.wfaccums.keys():
-            d = moddiff(key, wfid, SEGIDX_MOD)
-            if abs(d) >= WF_DROP_DIFF:
-                del self.wfaccums[key]
-
-        accum = self.wfaccums.get(wfid, WfAccum(wfid, size))
-        assert(accum.size == size)
-        
-        if accum.addSegment(array):
-            # waveform completed
-            wf = accum.concat()
-            # remove previous incomplete waveforms
-            for key in self.wfaccums.keys():
-                d = moddiff(key, wfid, SEGIDX_MOD)
-                if d < 0:
-                    del self.wfaccums[key]
-            return wf
-        return None
+    
 
     def setConnection(self):
         try:
+            logger.debug(".setConnection(%s, %s)" % (self.pv, self.chan))
             catools.connect(self.pv)
             if self.direction=="mp":
                 if self.datatype == "wfint":
@@ -118,6 +93,8 @@ class PvMqttChan:
 
     def updateChan(self, value):
         try:
+            logger.debug(".updateChan(%s, %s)" % (self.chan, repr(value)))
+            
             if self.datatype == "wfint":
                 value = (self.wfid_cnt, np.array(value))
                 self.wfid_cnt += 1
@@ -125,29 +102,29 @@ class PvMqttChan:
                 value = (self.wfid_cnt, value)
                 self.wfid_cnt += 1
 
-            payload = self.converter.encode(value, self.datatype)
+            payload = self.conv.encode(value, self.datatype)
 
             if self.datatype == "wfint":
                 for i, seg in enumerate(payload):
-                    topic = self.chan + str(i).zfill(3)
-                    self.client.publish(topic, seg, self.qos).wait_for_publish()
+                    topic = self.chan + str(i % SEGIDX_MOD).zfill(SEGIDX_DIGCNT)
+                    self.client.publish(topic, seg, self.qos)
                     time.sleep(MQTT_DELAY)
             else:
-                self.client.publish(self.chan, payload, self.qos, self.retain).wait_for_publish()
-                time.sleep(MQTT_DELAY)
+                self.client.publish(self.chan, payload, self.qos, self.retain)
+                #time.sleep(MQTT_DELAY)
 
-            logger.debug(".updateChan(%s, %s)" % (self.chan, repr(value)))
         except Exception as e:
             logger.error("Trouble when Publishing to Mqtt with " + self.chan + ": " + str(e))
             logger.info(traceback.format_exc())
             #cothread.Quit()
 
-    def updatePv(self, payload):
+    def updatePv(self, topic, payload):
         try:
-            value = self.converter.decode(payload, self.datatype)
+            value = self.conv.decode(payload, self.datatype)
             if self.datatype == "wfint":
+                idx = int(topic.split("/")[-1])
                 wfid, size, array = value
-                value = self.pushWfSegment(wfid, size, array)
+                value = self.pushWfSegment(idx, wfid, size, array)
             if value is not None:
                 cothread.Callback(caput, self.pv, value)
             logger.debug(".updatePv(%s, %s, %s)" % (self.pv, repr(payload), value))
@@ -201,129 +178,6 @@ class PvMqttChan:
         if waveforms[wfid].sendWfToPv(self.pv):
             del waveforms[wfid]
 
-class MqttDataConverter:
-    def __init__(self, segment_size):
-        self.segsize = segment_size
-
-    def encode(self, value, dtype):
-        if dtype == "int":
-            return struct.pack(">i", value)
-        elif dtype == "string": # TODO: change when migrate to python3
-            return value
-        elif dtype == "wfint1": # TODO: remove
-            wfid, num = value
-            return struct.pack(">iii", (wfid, 0, num))
-        elif dtype == "wfint":
-            wfid, array = value
-            size = len(array)
-            output = []
-            sds = self.segsize - 2 # segment data size
-            for i in range((size - 1)//sds + 1):
-                meta = struct.pack(">ii", (wfid, size))
-                data = array[i*sds:(i+1)*sds].astype(">i4").tobytes()
-                output.append(meta + data)
-            return output
-
-    def decode(self, payload, dtype):
-        if dtype == "int":
-            return struct.unpack(">i", payload)[0]
-        elif dtype == "string": # TODO: change when migrate to python3
-            return value 
-        elif dtype == "wfint1": # TODO: remove
-            struct.unpack(">iii",wf)[2]
-        elif dtype == "wfint":
-            ms = 2*4 # metainfo size
-            meta, data = payload[:ms], payload[ms:]
-            wfid, size = struct.unpack(">ii", meta)
-            array = np.ndarray(shape=(-1,), dtype='>i4', buffer=data).astype(np.int32)
-            return (wfid, size, array)
-
-class WfAccum:
-    def __init__(self, size):
-        self.size = size
-        self.segs = {}
-        self.dc = 0 # data counter
-
-    def addSegment(self, idx, seg):
-        self.segs[idx] = seg
-        self.dc += len(seg)
-        if self.dc < self.size:
-            return False
-        elif self.dc == self.size:
-            return True
-        else:
-            raise ValueError("Total length of segments (%d) larger than waveform size (%d)" % (self.dc, self.size))
-
-    def concat(self):
-        maxidx = max(self.segs.keys())
-        seq = []
-        for i in range(maxidx):
-            seq.append(self.dc[i])
-        return np.concatenate(seq)
-
-class WaveForm:
-    def __init__(self,id,msg=None,msgsize=None,maxsize=300,first_msg=None):
-        self.maxsize = maxsize
-        self.id = id
-        if first_msg:
-            self.msgsize = msgsize
-            self.messages = [first_msg]
-            self.msg = self.unpackWf()
-        else:
-            self.msg = msg
-            self.msgsize = len(msg)
-            self.messages = self.packWf()
-    def appendMessage(self,message):
-        self.messages.append(message)
-        self.msg = self.unpackWf()
-    def unpackWf(self):
-        wf = []
-        n_segments = (self.msgsize - 1)//self.maxsize + 1
-        #print(n_segments)
-        if n_segments > len(self.messages):
-            return wf
-        last_segment_size = self.msgsize%self.maxsize
-        segment_size = self.maxsize
-        for i in range(n_segments):
-            if(i==n_segments-1):
-                segment_size = last_segment_size
-            segment = self.messages[i]
-            wf = wf + list(segment[2:])#struct.unpack(">%ui"%(segment_size+2),segment)[2:]
-        return wf
-    def packWf(self):
-        pack = []
-        if self.msgsize==0:
-            return pack
-        n_segments = (self.msgsize - 1)//self.maxsize + 1
-        last_segment_size = self.msgsize%self.maxsize
-        segment_size = self.maxsize
-        for i in range(n_segments):
-            if(i==n_segments-1):
-                segment_size = last_segment_size
-            segment = []
-            for j in range(i*self.maxsize,i*self.maxsize+segment_size):
-                segment.append(self.msg[j])
-            sendline = [id,self.msgsize]+segment
-            pack.append(struct.pack(">%ui"%(segment_size+2),*sendline))
-        return pack
-    def sendWfToMqtt(self,client,address,qos,sleeptime):
-        for i in range(len(self.messages)):
-            msgaddress = address+"/"+str(i).zfill(3)
-            client.publish(msgaddress,self.messages[i],qos)
-            time.sleep(sleeptime)
-    def sendWfToPv(self,pv_name):
-        try:
-            #print("[info] self.msg: %s" % self.msg)
-            #print("[info] len(self.msg): %s" % len(self.msg))
-            if len(self.msg)!=0:
-                cothread.Callback(caput,pv_name,self.msg)
-                return True
-            return False
-        except Exception as e:
-            logger.error("Trouble when Publishing to PV with " + pv_name + ": " + str(e))
-            logger.info(traceback.format_exc())
-
-
 class Server:
     def __init__(self,type,name,timestamp=None):
         self.type = type
@@ -364,7 +218,7 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, msg):
     logger.debug(".on_message(topic=%s)" % repr(msg.topic))
-    getChannel(msg.topic).updatePv(msg.payload)
+    getChannel(msg.topic).updatePv(msg.topic, msg.payload)
 
 try:
     config_path = os.path.join(script_dir, "gateway_config.json") # default config file
