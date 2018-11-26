@@ -72,6 +72,34 @@
             "qos": 2
         },
         {
+            "mqtt": "VEPP3/H/Nf/00",
+            "pv": "VEPP3_H_I_tau-SP",
+            "direction": "pm",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "VEPP3/H/Nf/01",
+            "pv": "VEPP3_H_U_tau-SP",
+            "direction": "pm",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "VEPP3/H/Nf/02",
+            "pv": "VEPP3_H_DAC_tau-SP",
+            "direction": "pm",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "VEPP3/H/interlock/clear",
+            "pv": "VEPP3_H_interlock_clear-SP",
+            "direction": "pm",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
             "mqtt": "VEPP3/H/restarted",
             "pv": "VEPP3_H_Restarted-I",
             "direction": "mp",
