@@ -1,5 +1,5 @@
 {
-    "mqtt_broker_address": "192.168.176.128",
+    "mqtt_broker_address": "192.168.144.86",
     "connections": [
         {
             "mqtt": "VEPP3/H/DAC/wf",
@@ -33,6 +33,13 @@
             "mqtt": "VEPP3/H/DAC/wf/operation",
             "pv": "VEPP3_H_Iwf_op-SP",
             "direction": "pm",
+            "datatype": "int",
+            "qos": 1
+        },
+        {
+            "mqtt": "VEPP3/H/DAC/wf/idx",
+            "pv": "VEPP3_H_Iwf_idx-I",
+            "direction": "mp",
             "datatype": "int",
             "qos": 1
         },
