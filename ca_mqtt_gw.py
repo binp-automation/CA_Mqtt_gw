@@ -248,7 +248,7 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, msg):
-    logger.info(msg.topic)
+    logger.debug(msg.topic)
     getChannel(msg.topic).updatePv(msg.payload)
 
 try:
