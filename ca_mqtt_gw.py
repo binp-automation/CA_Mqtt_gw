@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-from queue import Queue
+from multiprocessing import Queue
 from threading import Thread
 
 import cothread.catools as catools
