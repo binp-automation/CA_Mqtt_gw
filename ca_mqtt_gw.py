@@ -78,8 +78,6 @@ class PvMqttChan:
 
     def setConnection(self):
         try:
-            logger.debug(".setConnection(%s, %s)" % (self.pv, self.chan))
-            
             catools.connect(self.pv)
             if self.direction=="mp":
                 if self.datatype == "wfint":
@@ -89,15 +87,14 @@ class PvMqttChan:
             elif self.direction=="pm":
                 self.thread.start()
                 camonitor(self.pv, self.pushValue)
-
-            logger.info(self.chan + " connection set")
-
+            logger.info("(%s, %s) connection set" % (self.pv, self.chan))
         except Exception as e:
             logger.error("Trouble with connection with " + self.pv + " or " + self.chan + ": " + str(e))
             logger.debug(traceback.format_exc())
             #cothread.Quit()
 
     def pushValue(self, value):
+        logger.debug("ca: received from %s" % self.pv)
         self.queue.put(value)
 
     def updateChanLoop(self):
@@ -105,26 +102,22 @@ class PvMqttChan:
             self.updateChan(self.queue.get())
 
     def updateChan(self, value):
+        logger.debug("mqtt: send to %s" % self.chan)
         try:
-            logger.debug(".updateChan(%s, %s)" % (self.chan, repr(value)))
-
             for topic, payload in self.conv.encode(self.chan, value):
                 self.client.publish(topic, payload, self.qos, self.retain).wait_for_publish()
                 time.sleep(MQTT_DELAY)
-
         except Exception as e:
             logger.error("Trouble when Publishing to Mqtt with " + self.chan + ": " + str(e))
             logger.debug(traceback.format_exc())
             #cothread.Quit()
 
     def updatePv(self, topic, payload):
+        logger.debug("ca: send to %s" % self.pv)
         try:
-            logger.debug(".updatePv(%s, %s, %s)" % (self.pv, repr(topic), repr(payload)))
-
             value = self.conv.decode(topic, payload)
             if value is not None:
                 cothread.CallbackResult(caput, self.pv, value)
-
         except Exception as e:
             logger.error("Trouble in updatePv with " + self.pv + ": " + str(e))
             logger.debug(traceback.format_exc())
@@ -187,13 +180,13 @@ def getChannel(channame):
 
 def on_connect(client, userdata, flags, rc):
     global chans
-    logger.info("Connected with result code " + str(rc))
+    logger.info("mqtt: connected with result code %s" % int(rc))
     #for channel in chans:
     #    channel.setConnection()
 
 
 def on_message(client, userdata, msg):
-    logger.debug(msg.topic)
+    logger.debug("mqtt: received from %s" % msg.topic)
     chan = getChannel(msg.topic)
     if chan is not None:
         chan.updatePv(msg.topic, msg.payload)
