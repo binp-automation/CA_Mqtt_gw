@@ -131,12 +131,12 @@ class Test(unittest.TestCase):
     def test_int(self):
         conv = get("int", {})
         pairs = [
-            (0, chr(0)*4),
-            (1, chr(0)*3 + chr(1)),
-            (-1, chr(0xFF)*4),
-            (0x7FFFFFFF, chr(0x7F) + chr(0xFF)*3),
-            (-0x80000000, chr(0x80) + chr(0x00)*3),
-            (0x1234ABCD, "".join([chr(c) for c in [0x12, 0x34, 0xAB, 0xCD]])),
+            (0, b"\x00\x00\x00\x00"),
+            (1, b"\x00\x00\x00\x01"),
+            (-1, b"\xFF\xFF\xFF\xFF"),
+            (0x7FFFFFFF, b"\x7F\xFF\xFF\xFF"),
+            (-0x80000000, b"\x80\x00\x00\x00"),
+            (0x1234ABCD, b"\x12\x34\xAB\xCD"),
         ]
         for n, b in pairs:
             self.assertEqual(conv.encode("", n)[0][1], b)
@@ -161,17 +161,17 @@ class Test(unittest.TestCase):
     def test_wfint1(self): # TODO: remove
         conv = get("wfint1", {})
         pairs = [
-            (0, chr(0)*4),
-            (1, chr(0)*3 + chr(1)),
-            (-1, chr(0xFF)*4),
-            (0x7FFFFFFF, chr(0x7F) + chr(0xFF)*3),
-            (-0x80000000, chr(0x80) + chr(0x00)*3),
-            (0x1234ABCD, "".join([chr(c) for c in [0x12, 0x34, 0xAB, 0xCD]])),
+            (0, b"\x00\x00\x00\x00"),
+            (1, b"\x00\x00\x00\x01"),
+            (-1, b"\xFF\xFF\xFF\xFF"),
+            (0x7FFFFFFF, b"\x7F\xFF\xFF\xFF"),
+            (-0x80000000, b"\x80\x00\x00\x00"),
+            (0x1234ABCD, b"\x12\x34\xAB\xCD"),
         ]
         for n, b in pairs:
             self.assertEqual(conv.encode("", n)[0][1][8:], b)
         for n, b in pairs:
-            self.assertEqual(conv.decode("", chr(0)*8 + b), n)
+            self.assertEqual(conv.decode("", b"\x00"*8 + b), n)
 
     def test_wfint_enc(self):
         for j in range(1, 4):
