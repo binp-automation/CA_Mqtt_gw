@@ -24,6 +24,7 @@ import logging
 
 import mqttconv
 
+
 script_dir = os.path.dirname(__file__)
 
 # configure logging to write both to file and stdout
@@ -93,7 +94,7 @@ class PvMqttChan:
 
         except Exception as e:
             logger.error("Trouble with connection with " + self.pv + " or " + self.chan + ": " + str(e))
-            logger.info(traceback.format_exc())
+            logger.debug(traceback.format_exc())
             #cothread.Quit()
 
     def pushValue(self, value):
@@ -113,7 +114,7 @@ class PvMqttChan:
 
         except Exception as e:
             logger.error("Trouble when Publishing to Mqtt with " + self.chan + ": " + str(e))
-            logger.info(traceback.format_exc())
+            logger.debug(traceback.format_exc())
             #cothread.Quit()
 
     def updatePv(self, topic, payload):
@@ -126,7 +127,7 @@ class PvMqttChan:
 
         except Exception as e:
             logger.error("Trouble in updatePv with " + self.pv + ": " + str(e))
-            logger.info(traceback.format_exc())
+            logger.debug(traceback.format_exc())
             #cothread.Quit()
 
     def findServer(self,type,name):
@@ -180,8 +181,9 @@ def unicodeToStr(name):
 def getChannel(channame):
     global chans
     for chan in chans:
-        if channame.startswith(chan.chan):
+        if channame == chan.chan or channame.rstrip("0123456789") == chan.chan:
             return chan
+    return None
 
 def on_connect(client, userdata, flags, rc):
     global chans
@@ -191,8 +193,10 @@ def on_connect(client, userdata, flags, rc):
 
 
 def on_message(client, userdata, msg):
-    logger.debug(".on_message(topic=%s)" % repr(msg.topic))
-    getChannel(msg.topic).updatePv(msg.topic, msg.payload)
+    logger.debug(msg.topic)
+    chan = getChannel(msg.topic)
+    if chan is not None:
+        chan.updatePv(msg.topic, msg.payload)
 
 try:
     config_path = os.path.join(script_dir, "gateway_config.json") # default config file
