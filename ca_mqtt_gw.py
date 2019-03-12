@@ -51,6 +51,7 @@ CONV_CFG = {
                               # that enough to drop an old incomplete ones
 }
 MQTT_DELAY = 0.07 # seconds
+RECONNECT_ATTEMPTS = 100
 
 class PvMqttChan:
     def __init__(self,connection,servers,client):
@@ -77,21 +78,24 @@ class PvMqttChan:
         self.thread = Thread(target=self.updateChanLoop)
 
     def setConnection(self):
-        try:
-            catools.connect(self.pv)
-            if self.direction=="mp":
-                if self.datatype == "wfint":
-                    self.client.subscribe(self.chan+"#")
-                else:
-                    self.client.subscribe(self.chan)
-            elif self.direction=="pm":
-                self.thread.start()
-                camonitor(self.pv, self.pushValue)
-            logger.info("(%s, %s) connection set" % (self.pv, self.chan))
-        except Exception as e:
-            logger.error("Trouble with connection with " + self.pv + " or " + self.chan + ": " + str(e))
-            logger.debug(traceback.format_exc())
-            #cothread.Quit()
+        for i in range(RECONNECT_ATTEMPTS):
+            try:
+                catools.connect(self.pv)
+                if self.direction=="mp":
+                    if self.datatype == "wfint":
+                        self.client.subscribe(self.chan+"#")
+                    else:
+                        self.client.subscribe(self.chan)
+                elif self.direction=="pm":
+                    self.thread.start()
+                    camonitor(self.pv, self.pushValue)
+                logger.info("(%s, %s) connection set" % (self.pv, self.chan))
+                break
+            except Exception as e:
+                logger.error("Trouble with connection with " + self.pv + " or " + self.chan + ": " + str(e))
+                logger.debug(traceback.format_exc())
+                #cothread.Quit()
+                continue
 
     def pushValue(self, value):
         logger.debug("ca: received from %s" % self.pv)
