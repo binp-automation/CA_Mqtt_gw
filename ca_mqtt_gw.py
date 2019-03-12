@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+import numpy as np
+from multiprocessing import Queue
+from threading import Thread
+
 import cothread.catools as catools
 import cothread
 from cothread.catools import *
@@ -12,13 +16,14 @@ import time
 import sys
 import os
 import array
-import struct
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 
 import traceback
-
 import logging
+
+import mqttconv
+
 
 script_dir = os.path.dirname(__file__)
 
@@ -37,8 +42,16 @@ fh.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s', dat
 logger.addHandler(fh)
 
 chans = []
-id = 0
-waveforms = {}
+
+# predefined constants
+CONV_CFG = {
+    "segment_size_max": 1208, # bytes
+    "segment_index_digits": 3, # decimal digits count in segment index
+    "waveform_queue_size": 3, # difference between waveform ids 
+                              # that enough to drop an old incomplete ones
+}
+MQTT_DELAY = 0.07 # seconds
+RECONNECT_ATTEMPTS = 12
 
 class PvMqttChan:
     def __init__(self,connection,servers,client):
@@ -53,53 +66,71 @@ class PvMqttChan:
             self.qos = connection["qos"]
         else:
             self.qos = 0
-        self.retain = False;
+        self.retain = False
         if ("retain" in connection) and connection["retain"] == "true":
-            self.retain = True;
+            self.retain = True
         self.servers = servers
         self.client = client
+
+        self.conv = mqttconv.get(self.datatype, CONV_CFG)
+
+        self.queue = Queue()
+        self.thread = Thread(target=self.updateChanLoop)
+
     def setConnection(self):
+        connected = False
+        for i in range(RECONNECT_ATTEMPTS):
+            try:
+                catools.connect(self.pv)
+                if self.direction=="mp":
+                    if self.datatype == "wfint":
+                        self.client.subscribe(self.chan+"#")
+                    else:
+                        self.client.subscribe(self.chan)
+                elif self.direction=="pm":
+                    self.thread.start()
+                    camonitor(self.pv, self.pushValue)
+                logger.info("(%s, %s) connection set" % (self.pv, self.chan))
+                connected = True
+                break
+            except Exception as e:
+                logger.error("Trouble with connection to " + self.pv + " or " + self.chan + ": " + str(e))
+                logger.debug(traceback.format_exc())
+                #cothread.Quit()
+                continue
+        if not connected:
+            logger.error("Unable to connect to " + self.pv + " or " + self.chan + ", giving up")
+
+    def pushValue(self, value):
+        logger.debug("ca: received from %s" % self.pv)
+        self.queue.put(value)
+
+    def updateChanLoop(self):
+        while True:
+            self.updateChan(self.queue.get())
+
+    def updateChan(self, value):
+        logger.debug("mqtt: send to %s" % self.chan)
         try:
-            catools.connect(self.pv)
-            if self.direction=="mp":
-                if self.datatype == "wfint":
-                    self.client.subscribe(self.chan+"#")
-                else:
-                    self.client.subscribe(self.chan)
-            elif self.direction=="pm":
-                camonitor(self.pv,self.updateChan)
-            logger.info(self.chan + " connection set")
-        except Exception as e:
-            logger.error("Trouble with connection with " + self.pv + " or " + self.chan + ": " + str(e))
-            logger.debug(traceback.format_exc())
-            #cothread.Quit()
-    def updateChan(self,value):
-        try:
-            if self.datatype=="wfint":
-                self.sendWf(value)
-            elif self.datatype=="int":
-                self.client.publish(self.chan, struct.pack(">i", value), self.qos, self.retain)
-            else:
-                self.client.publish(self.chan,value,self.qos, self.retain)
+            for topic, payload in self.conv.encode(self.chan, value):
+                self.client.publish(topic, payload, self.qos, self.retain).wait_for_publish()
+                time.sleep(MQTT_DELAY)
         except Exception as e:
             logger.error("Trouble when Publishing to Mqtt with " + self.chan + ": " + str(e))
             logger.debug(traceback.format_exc())
             #cothread.Quit()
-    def updatePv(self,value):
+
+    def updatePv(self, topic, payload):
+        logger.debug("ca: send to %s" % self.pv)
         try:
-            pv_val = value
-            if self.datatype == "wfint":
-                self.wfToWf(value)
-            else:
-                if self.datatype == "wfint1":
-                    pv_val = self.wfToScalar(value)
-                elif self.datatype == "int":
-                    pv_val = self.intToScalar(value)
-                cothread.Callback(caput,self.pv,pv_val)
+            value = self.conv.decode(topic, payload)
+            if value is not None:
+                cothread.CallbackResult(caput, self.pv, value)
         except Exception as e:
             logger.error("Trouble in updatePv with " + self.pv + ": " + str(e))
             logger.debug(traceback.format_exc())
             #cothread.Quit()
+
     def findServer(self,type,name):
         result = [x for x in self.servers if x.type == type and x.name == name]
         if len(result) != 0:
@@ -122,92 +153,6 @@ class PvMqttChan:
         if server:
             server.delayServer()
             return
-    def sendWf(self,wf):
-        global id
-        waveform = WaveForm(id,wf)
-        waveform.sendWfToMqtt(self.client,self.chan,self.qos,0.07)
-        id+=1
-    def wfToScalar(self,wf):
-        return float(struct.unpack(">iii",wf)[2])
-    def intToScalar(self,wf):
-        return float(struct.unpack(">i",wf)[0])
-    def wfToWf(self,wf):
-        global waveforms
-        wflen = len(wf)//4
-        message = struct.unpack(">%ui"%wflen,wf)
-        wfid = int(message[0])
-        msgsize = int(message[1])
-        if wfid in waveforms:
-            #print(wfid)
-            waveforms[wfid].appendMessage(message)
-        else:
-            waveforms[wfid] = WaveForm(id=wfid,msgsize=msgsize,first_msg=message)
-        if waveforms[wfid].sendWfToPv(self.pv):
-            del waveforms[wfid]
-
-
-class WaveForm:
-    def __init__(self,id,msg=None,msgsize=None,maxsize=300,first_msg=None):
-        self.maxsize = maxsize
-        self.id = id
-        if first_msg:
-            self.msgsize = msgsize
-            self.messages = [first_msg]
-            self.msg = self.unpackWf()
-        else:
-            self.msg = msg
-            self.msgsize = len(msg)
-            self.messages = self.packWf()
-    def appendMessage(self,message):
-        self.messages.append(message)
-        self.msg = self.unpackWf()
-    def unpackWf(self):
-        wf = []
-        n_segments = (self.msgsize - 1)//self.maxsize + 1
-        #print(n_segments)
-        if n_segments > len(self.messages):
-            return wf
-        last_segment_size = self.msgsize%self.maxsize
-        segment_size = self.maxsize
-        for i in range(n_segments):
-            if(i==n_segments-1):
-                segment_size = last_segment_size
-            segment = self.messages[i]
-            wf = wf + list(segment[2:])#struct.unpack(">%ui"%(segment_size+2),segment)[2:]
-        return wf
-    def packWf(self):
-        pack = []
-        if self.msgsize==0:
-            return pack
-        n_segments = (self.msgsize - 1)//self.maxsize + 1
-        last_segment_size = self.msgsize%self.maxsize
-        segment_size = self.maxsize
-        for i in range(n_segments):
-            if(i==n_segments-1):
-                segment_size = last_segment_size
-            segment = []
-            for j in range(i*self.maxsize,i*self.maxsize+segment_size):
-                segment.append(self.msg[j])
-            sendline = [id,self.msgsize]+segment
-            pack.append(struct.pack(">%ui"%(segment_size+2),*sendline))
-        return pack
-    def sendWfToMqtt(self,client,address,qos,sleeptime):
-        for i in range(len(self.messages)):
-            msgaddress = address+"/"+str(i).zfill(3)
-            client.publish(msgaddress,self.messages[i],qos)
-            time.sleep(sleeptime)
-    def sendWfToPv(self,pv_name):
-        try:
-            #print("[debug] self.msg: %s" % self.msg);
-            #print("[debug] len(self.msg): %s" % len(self.msg));
-            if len(self.msg)!=0:
-                cothread.Callback(caput,pv_name,self.msg)
-                return True
-            return False
-        except Exception as e:
-            logger.error("Trouble when Publishing to PV with " + pv_name + ": " + str(e))
-            logger.debug(traceback.format_exc())
-
 
 class Server:
     def __init__(self,type,name,timestamp=None):
@@ -243,16 +188,16 @@ def getChannel(channame):
 
 def on_connect(client, userdata, flags, rc):
     global chans
-    logger.info("Connected with result code " + str(rc))
+    logger.info("mqtt: connected with result code %s" % int(rc))
     #for channel in chans:
     #    channel.setConnection()
 
 
 def on_message(client, userdata, msg):
-    logger.debug(msg.topic)
+    logger.debug("mqtt: received from %s" % msg.topic)
     chan = getChannel(msg.topic)
     if chan is not None:
-        chan.updatePv(msg.payload)
+        chan.updatePv(msg.topic, msg.payload)
 
 try:
     config_path = os.path.join(script_dir, "gateway_config.json") # default config file
