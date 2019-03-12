@@ -6,7 +6,7 @@
 [travis_badge]: https://api.travis-ci.org/binp-automation/ca_mqtt_gw.svg
 [license_badge]: https://img.shields.io/github/license/binp-automation/ca_mqtt_gw.svg
 
-[travis]: https://travis-ci.org/nthend/ca_mqtt_gw
+[travis]: https://travis-ci.org/binp-automation/ca_mqtt_gw
 [license]: https://github.com/binp-automation/ca_mqtt_gw/blob/master/LICENSE
 
 ## Requirements
