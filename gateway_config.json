@@ -6,7 +6,7 @@
             "pv": "VEPP3_H_Iwf-SP",
             "direction": "pm",
             "datatype": "wfint",
-            "qos": 1
+            "qos": 0
         },
         {
             "mqtt": "VEPP3/H/DI",
